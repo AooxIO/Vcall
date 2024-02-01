@@ -1,0 +1,80 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-Time Voice Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #talkButton {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            #talkButton {
+                padding: 20px 40px;
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button id="talkButton">Hold to Talk</button>
+    <script>
+        const socket = io();
+        let mediaRecorder;
+        
+        async function getMediaStream() {
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+            }
+        }
+
+        function handleStream(stream) {
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = function(event) {
+                if (event.data.size > 0 && socket.connected) {
+                    socket.emit('audioMessage', event.data);
+                }
+            };
+
+            mediaRecorder.onstop = function() {
+                console.log('Stopped recording.');
+            };
+        }
+
+        document.getElementById('talkButton').addEventListener('mousedown', async () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                const stream = await getMediaStream();
+                handleStream(stream);
+                mediaRecorder.start();
+            }
+        });
+
+        document.getElementById('talkButton').addEventListener('mouseup', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+        });
+
+        socket.on('audioMessage', function(audioChunks) {
+            const audioBlob = new Blob(audioChunks, { 'type' : 'audio/ogg; codecs=opus' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        });
+    </script>
+</body>
+</html>
